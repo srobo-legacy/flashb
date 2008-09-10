@@ -21,7 +21,19 @@
    Returns the file descriptor. */
 int i2c_config( char* devname, uint8_t address );
 
+/* Enable packet error checking */
 void i2c_pec_enable( int fd );
+/* Disable packet error checking */
 void i2c_pec_disable( int fd );
+
+/* Send a block of data to the client.
+   Include the checksum in the packet.
+   Outgoing packet format:
+   Address, Command, Data, PEC
+   Please note the absence of the length field. */
+int i2c_send_block( int fd,
+		    uint8_t cmd,
+		    uint8_t *data,
+		    uint8_t len );
 
 #endif	/* __I2C_H */

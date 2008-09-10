@@ -53,3 +53,10 @@ void i2c_pec_disable( int fd )
 		g_error( "Failed to disable PEC\n" ); 
 }
 
+int i2c_send_block( int fd,
+		    uint8_t cmd,
+		    uint8_t *data,
+		    uint8_t len )
+{
+	return -1;	
+}
