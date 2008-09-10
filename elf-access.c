@@ -15,7 +15,6 @@
     Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA. */
 #include "elf-access.h"
 #include <libelf.h>
-#include <gelf.h>
 #include <fcntl.h>
 #include <glib.h>
 #include <string.h>
@@ -27,7 +26,7 @@
     - section: The section to copy from.
     -  header: The section header for the section to copy from. */
 static elf_section_t* elf_access_load_section( Elf_Scn *section,
-					       GElf_Shdr *header );
+					       Elf32_Shdr *header );
 
 void elf_access_load_sections( char* fname,
 			       elf_section_t **text,
@@ -61,21 +60,22 @@ void elf_access_load_sections( char* fname,
 	section = NULL;
 	/* Loop through all the sections */
 	while( (section = elf_nextscn( elf, section )) != NULL ) {
-		GElf_Shdr hdr;
+		Elf32_Shdr *hdr;
 		char *name;
 
 		/* Retrieve the section header */
-		if( gelf_getshdr( section, &hdr ) == NULL )
+		hdr = elf32_getshdr( section );
+		if( hdr == NULL )
 			g_error( "Couldn't retrieve section header: %s", elf_errmsg(-1) );
 		
-		name = elf_strptr( elf, stable, hdr.sh_name );
+		name = elf_strptr( elf, stable, hdr->sh_name );
 		if( name == NULL )
 			g_error( "Couldn't get section name: %s", elf_errmsg(-1) );
 
 		if( strcmp( name, ".text" ) == 0 )
-			*text = elf_access_load_section( section, &hdr );
+			*text = elf_access_load_section( section, hdr );
 		else if( strcmp( name, ".vectors" ) == 0 )
-			*vectors = elf_access_load_section( section, &hdr );
+			*vectors = elf_access_load_section( section, hdr );
 	}	
 
 	if( text == NULL )
@@ -87,7 +87,7 @@ void elf_access_load_sections( char* fname,
 	close( efd );
 }
 
-static elf_section_t* elf_access_load_section( Elf_Scn *section, GElf_Shdr *header )
+static elf_section_t* elf_access_load_section( Elf_Scn *section, Elf32_Shdr *header )
 {
 	Elf_Data *d = NULL;
 	elf_section_t *s = NULL;
