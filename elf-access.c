@@ -35,6 +35,7 @@ void elf_access_load_sections( char* fname,
 	int efd;
 	Elf *elf;
 	size_t stable;
+	Elf32_Ehdr *ehdr;
 	Elf_Scn *section;
 	g_assert( fname != NULL && text != NULL && vectors != NULL );
 
@@ -52,9 +53,11 @@ void elf_access_load_sections( char* fname,
 	if( elf_kind( elf ) != ELF_K_ELF )
 		g_error( "ELF file is of wrong type" );
 
-	/* Get the section index of the string table containing the section names */
-	if( elf_getshstrndx( elf, &stable ) < 0 )
-		g_error( "getshstrndx() failed: %s", elf_errmsg(-1) );
+	/* Find the string table section index */
+	ehdr = elf32_getehdr( elf );
+	if( ehdr == NULL )
+		g_error( "Failed to get elf header: %s", elf_errmsg(-1) );
+	stable = ehdr->e_shstrndx;
 
 	/* Find the .text and .vectors sections */
 	section = NULL;
