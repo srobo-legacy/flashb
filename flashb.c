@@ -157,16 +157,18 @@ static void config_file_load( const char* fname )
 	/** Load in the commands **/
 	/* dev_name */
 	for( i=0; i<NUM_COMMANDS; i++ ) {
+		char *key = conf_get_cmd_str(i);
+
 		err = NULL;
-		if( !g_key_file_has_key( keyfile, dev_name, conf_get_cmd_str(i), &err ) )
+		if( !g_key_file_has_key( keyfile, dev_name, key, &err ) )
 			g_error( "%s board has no %s command defined.",
-				 dev_name, conf_get_cmd_str(i) );
+				 dev_name, key );
 
 		err = NULL;
 		commands[i] = g_key_file_get_integer( keyfile, dev_name,
-						      conf_get_cmd_str(i), &err );
-
-		g_print( "Command %s is %hhu\n", conf_get_cmd_str(i), commands[i] );
+						      key, &err );
+		if( err != NULL )
+			g_error( "Failed to read %s.%s from config file: %s", dev_name, key, err->message );
 	}
 }
 
