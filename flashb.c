@@ -30,6 +30,8 @@
 #include "smbus_pec.h"
 #include "msp430-fw.h"
 
+static void config_load( int *argc, char ***argv );
+
 /* Read configuration from a file */
 static void config_file_load( const char* fname );
 
@@ -59,6 +61,7 @@ static char* config_fname = "flashb.config";
 static char* i2c_device = NULL;
 static uint8_t i2c_address = 0;
 static char* dev_name = NULL;
+static char* elf_fname = NULL;
 
 static GOptionEntry entries[] =
 {
@@ -73,35 +76,8 @@ int main( int argc, char** argv )
 	elf_section_t *text = NULL, *vectors = NULL;
 	int i2c_fd;
 	uint16_t fw;
-	GOptionContext *context;
-	GError *error = NULL;
-	char* elf_fname = NULL;
 
-	context = g_option_context_new( "ELF_FILE - flash MSP430s over I2C" );
-	g_option_context_add_main_entries( context, entries, NULL );
-
-	/* Parse command line options */
-	if( !g_option_context_parse( context, &argc, &argv, &error ) ) {
-		g_print( "Failed to parse command line options: %s\n",
-			 error->message );
-		exit(1);
-	}
-
-	/* Device must be specified */
-	if( dev_name == NULL ) {
-		g_print( "Error: No device name specified\n");
-		exit(1);
-	}
-
-	/* Argument without letter is the elf filename */
-	if( argc != 2 ) {
-		g_print ( "Error: ELF file name required\n" );
-		exit(1);
-	}
-	elf_fname = argv[1];
-
-	/* Load settings from the config file  */
-	config_file_load( config_fname );
+	config_load( &argc, &argv );
 	i2c_fd = i2c_config( i2c_device, i2c_address );
 
 	/* Tell the msp430_fw code what the address is  */
@@ -214,3 +190,34 @@ static uint8_t key_file_get_hex( GKeyFile *key_file,
 	return v;
 }
 
+static void config_load( int *argc, char ***argv )
+{
+	GError *error = NULL;
+	GOptionContext *context;
+
+	context = g_option_context_new( "ELF_FILE - flash MSP430s over I2C" );
+	g_option_context_add_main_entries( context, entries, NULL );
+
+	/* Parse command line options */
+	if( !g_option_context_parse( context, argc, argv, &error ) ) {
+		g_print( "Failed to parse command line options: %s\n",
+			 error->message );
+		exit(1);
+	}
+
+	/* Device must be specified */
+	if( dev_name == NULL ) {
+		g_print( "Error: No device name specified.  See --help\n");
+		exit(1);
+	}
+
+	/* Argument without letter is the elf filename */
+	if( *argc != 2 ) {
+		g_print ( "Error: ELF file name required.  See --help\n" );
+		exit(1);
+	}
+	elf_fname = (*argv)[1];
+
+	/* Load settings from the config file  */
+	config_file_load( config_fname );
+}
