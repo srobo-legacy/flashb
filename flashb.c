@@ -30,6 +30,7 @@
 #include "smbus_pec.h"
 #include "msp430-fw.h"
 
+/* Sort out all the configuration loading from the cli and config file */
 static void config_load( int *argc, char ***argv );
 
 /* Read configuration from a file */
