@@ -57,6 +57,10 @@ cmd_desc_t cmds[] =
 	{ CMD_FW_CONFIRM, "cmd_fw_confirm" }
 };
 
+/* Returns the string for the given command number.
+   Looks up the command number in the cmds table. */
+char* conf_get_cmd_str( uint8_t cmd );
+
 static char* config_fname = "flashb.config";
 static char* i2c_device = NULL;
 static uint8_t i2c_address = 0;
@@ -151,10 +155,18 @@ static void config_file_load( const char* fname )
 
 	/** Load in the commands **/
 	/* dev_name */
-	for( i=0; i<NUM_COMMANDS; i++ )
-		if( !g_key_file_has_key( keyfile, dev_name, cmds[i].conf_name, &err ) )
+	for( i=0; i<NUM_COMMANDS; i++ ) {
+		err = NULL;
+		if( !g_key_file_has_key( keyfile, dev_name, conf_get_cmd_str(i), &err ) )
 			g_error( "%s board has no %s command defined.",
-				 dev_name, cmds[i].conf_name );
+				 dev_name, conf_get_cmd_str(i) );
+
+		err = NULL;
+		commands[i] = g_key_file_get_integer( keyfile, dev_name,
+						      conf_get_cmd_str(i), &err );
+
+		g_print( "Command %s is %hhu\n", conf_get_cmd_str(i), commands[i] );
+	}
 }
 
 static uint8_t key_file_get_hex( GKeyFile *key_file,
@@ -220,4 +232,18 @@ static void config_load( int *argc, char ***argv )
 
 	/* Load settings from the config file  */
 	config_file_load( config_fname );
+}
+
+char* conf_get_cmd_str( uint8_t cmd )
+{
+	uint8_t i;
+	g_assert( (sizeof(cmds)/sizeof(cmd_desc_t)) == NUM_COMMANDS );
+
+	for( i=0; i<NUM_COMMANDS; i++ ) {
+		if( cmds[i].cmd == cmd )
+			return cmds[i].conf_name;
+	}
+
+	g_error( "Command number %hhu not found in table", cmd );
+	return NULL;
 }
