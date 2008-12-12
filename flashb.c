@@ -31,11 +31,6 @@
 
 #define CHUNK_SIZE 16
 
-static const char* config_fname = "flashb.config";
-
-static char* i2c_device = NULL;
-static uint8_t i2c_address = 0;
-
 /* Read configuration from a file */
 static void config_load( const char* fname );
 
@@ -47,16 +42,37 @@ static uint8_t key_file_get_hex( GKeyFile *key_file,
 				 GError **error );
 
 /** Firmware related I2C commands **/
-/* Read firmware from the msp430 */
-#define	CMD_FW_VER 4
-/* Send a chunk to the msp430 */
-#define	CMD_FW_CHUNK 5
-/* Read the next address that the msp430 expects */
-#define CMD_FW_NEXT 5
-/* Read the CRC of the firmware calculated on the msp430 */
-#define	CMD_FW_CRCR 6
-/* Confirm the firmware CRC, triggering switchover */
-#define CMD_FW_CONFIRM 6
+typedef struct {
+	uint8_t cmd;
+	char* conf_name;
+} cmd_desc_t;
+
+enum {
+	/* Read firmware from the msp430 */
+	CMD_FW_VER = 0,
+	/* Send a chunk to the msp430 */
+	CMD_FW_CHUNK,
+	/* Read the next address that the msp430 expects */
+	CMD_FW_NEXT,
+	/* Read the CRC of the firmware calculated on the msp430 */
+	CMD_FW_CRCR,
+	/* Confirm the firmware CRC, triggering switchover */
+	CMD_FW_CONFIRM,
+
+	/* Number of commands */
+	NUM_COMMANDS
+};
+
+cmd_desc_t cmds[] =
+{
+	{ CMD_FW_VER, "cmd_fw_ver" },
+	{ CMD_FW_CHUNK, "cmd_fw_chunk" },
+	{ CMD_FW_NEXT, "cmd_fw_next" },
+	{ CMD_FW_CRCR, "cmd_fw_crcr" },
+	{ CMD_FW_CONFIRM, "cmd_fw_confirm" }
+};
+
+uint8_t commands[NUM_COMMANDS];
 
 /* Read the firmware version from the device */
 static uint16_t msp430_get_fw_version( int fd );
@@ -91,17 +107,56 @@ static void msp430_send_section( int fd,
 /* Confirm that the checksum the msp430 calculated is valid */
 static void msp430_confirm_crc( int i2c_fd );
 
+static char* config_fname = "flashb.config";
+static char* i2c_device = NULL;
+static uint8_t i2c_address = 0;
+static char* dev_name = NULL;
+
+static GOptionEntry entries[] =
+{
+	{ "config", 'c', 0, G_OPTION_ARG_FILENAME, &config_fname, "Config file path", "PATH" },
+	{ "device", 'd', 0, G_OPTION_ARG_FILENAME, &i2c_device, "I2C device path", "DEV_PATH" },
+	{ "name", 'n', 0, G_OPTION_ARG_STRING, &dev_name, "Slave device name in config file.", "NAME" },
+	{ NULL }
+};
+
 int main( int argc, char** argv )
 {
 	elf_section_t *text = NULL, *vectors = NULL;
 	int i2c_fd;
 	uint16_t fw;
+	GOptionContext *context;
+	GError *error = NULL;
+	char* elf_fname = NULL;
 
-	/** Load config and setup **/
+	context = g_option_context_new( "ELF_FILE - flash MSP430s over I2C" );
+	g_option_context_add_main_entries( context, entries, NULL );
+
+	/* Parse command line options */
+	if( !g_option_context_parse( context, &argc, &argv, &error ) ) {
+		g_print( "Failed to parse command line options: %s\n",
+			 error->message );
+		exit(1);
+	}
+
+	/* Device must be specified */
+	if( dev_name == NULL ) {
+		g_print( "Error: No device name specified\n");
+		exit(1);
+	}
+
+	/* Argument without letter is the elf filename */
+	if( argc != 2 ) {
+		g_print ( "ELF file name required\n" );
+		exit(1);
+	}
+	elf_fname = argv[1];
+
+	/* Load settings from the config file  */
 	config_load( config_fname );
 	i2c_fd = i2c_config( i2c_device, i2c_address );
 
-	elf_access_load_sections( "motor", &text, &vectors );
+	elf_access_load_sections( elf_fname, &text, &vectors );
 	if( vectors->len != 32 )
 		g_error( ".vectors section incorrect length: %u should be 32", vectors->len );
 
@@ -127,6 +182,7 @@ static void config_load( const char* fname )
 {
 	GError *err = NULL;
 	GKeyFile *keyfile;
+	uint8_t i;
 
 	keyfile = g_key_file_new();
 	g_key_file_load_from_file( keyfile,
@@ -136,9 +192,12 @@ static void config_load( const char* fname )
 		g_error( "Failed to load config from file '%s': %s", 
 			 fname, err->message );
 
+	/** Load the I2C device name **/
+	/* Check the i2c group exists */
 	if( !g_key_file_has_group( keyfile, "i2c" ) )
 		g_error( "i2c group not found in config file" );
 
+	/* Check the key exists */
 	if( !g_key_file_has_key( keyfile, "i2c", "device", NULL ) )
 		g_error( "i2c.device config not found" );
 
@@ -147,16 +206,28 @@ static void config_load( const char* fname )
 	if( err != NULL )
 		g_error( "Failed to read i2c.device: %s", err->message );
 
-	if( !g_key_file_has_group( keyfile, "motor" ) )
-		g_error( "motor group not found in config file" );
-	if( !g_key_file_has_key( keyfile, "motor", "address", NULL ) )
-		g_error( "motor.address config not found" );
+	/** Load the I2C slave address **/
+	/* Check the device group exists */
+	if( !g_key_file_has_group( keyfile, dev_name ) )
+		g_error( "%s group not found in config file", dev_name );
+
+	/* Check it's in the config file */
+	if( !g_key_file_has_key( keyfile, dev_name, "address", NULL ) )
+		g_error( "%s.address config not found", dev_name );
 	
+	/* Grab it from the config file */
 	err = NULL;
-	i2c_address = key_file_get_hex( keyfile, "motor", "address", &err );
+	i2c_address = key_file_get_hex( keyfile, dev_name, "address", &err );
 	if( err != NULL )
-		g_error( "Failed to read motor.address: %s", err->message );
+		g_error( "Failed to read %s.address: %s", dev_name, err->message );
 	printf( "device address: 0x%hhx\n", i2c_address );
+
+	/** Load in the commands **/
+	/* dev_name */
+	for( i=0; i<NUM_COMMANDS; i++ )
+		if( !g_key_file_has_key( keyfile, dev_name, cmds[i].conf_name, &err ) )
+			g_error( "%s board has no %s command defined.",
+				 dev_name, cmds[i].conf_name );
 }
 
 static uint8_t key_file_get_hex( GKeyFile *key_file,
@@ -196,7 +267,7 @@ static uint16_t msp430_get_fw_version( int fd )
 {
 	int32_t r;
 
-	r = i2c_smbus_read_word_data( fd, CMD_FW_VER );
+	r = i2c_smbus_read_word_data( fd, commands[CMD_FW_VER] );
 	if( r < 0 )
 		g_error( "Failed to read firmware version: %m" );
 
@@ -234,7 +305,7 @@ static void msp430_send_block( int fd,
 	   5-20: The data
 	     21: The checksum */
 
-	b[0] = CMD_FW_CHUNK;
+	b[0] = commands[CMD_FW_CHUNK];
 	b[1] = fw_ver & 0xff;
 	b[2] = (fw_ver >> 8) & 0xff;
 	b[3] = addr & 0xff;
@@ -272,7 +343,7 @@ static uint16_t msp430_get_next_address_once( int fd )
 	int32_t r;
 
 	do {
-	r = i2c_smbus_read_word_data( fd, CMD_FW_NEXT );
+	r = i2c_smbus_read_word_data( fd, commands[CMD_FW_NEXT] );
 	if( r < 0 )
 		printf( "Failed to read next address: %m\n" );
 	} while ( r < 0 );
@@ -350,7 +421,7 @@ static void msp430_confirm_crc( int i2c_fd )
 	 * 0: Command (CMD_FW_CONFIRM)
 	 * 1-4: Password (currently ignored)
 	 * 5: CRC */
-	buf[0] = CMD_FW_CONFIRM;
+	buf[0] = commands[CMD_FW_CONFIRM];
 	buf[1] = buf[2] = buf[3] = buf[4] = 0;
 
 	/* TODO move block transmission into function */
