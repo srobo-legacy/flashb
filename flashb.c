@@ -31,7 +31,7 @@
 #include "msp430-fw.h"
 
 /* Read configuration from a file */
-static void config_load( const char* fname );
+static void config_file_load( const char* fname );
 
 /* Read a single byte value from a GKeyFile that's in hex.
  * Returns the value. */
@@ -101,7 +101,7 @@ int main( int argc, char** argv )
 	elf_fname = argv[1];
 
 	/* Load settings from the config file  */
-	config_load( config_fname );
+	config_file_load( config_fname );
 	i2c_fd = i2c_config( i2c_device, i2c_address );
 
 	/* Tell the msp430_fw code what the address is  */
@@ -129,7 +129,7 @@ int main( int argc, char** argv )
 	return 0;
 }
 
-static void config_load( const char* fname )
+static void config_file_load( const char* fname )
 {
 	GError *err = NULL;
 	GKeyFile *keyfile;
