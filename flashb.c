@@ -38,10 +38,10 @@ static void config_file_load( const char* fname );
 
 /* Read a single byte value from a GKeyFile that's in hex.
  * Returns the value. */
-static uint8_t key_file_get_hex( GKeyFile *key_file,
-				 const gchar *group_name,
-				 const gchar *key,
-				 GError **error );
+static unsigned long int key_file_get_hex( GKeyFile *key_file,
+					   const gchar *group_name,
+					   const gchar *key,
+					   GError **error );
 
 /** Firmware related I2C commands **/
 typedef struct {
@@ -66,7 +66,8 @@ static char* config_fname = "flashb.config";
 static char* i2c_device = NULL;
 static uint8_t i2c_address = 0;
 static char* dev_name = NULL;
-static char* elf_fname = NULL;
+static char *elf_fname_b = NULL;
+static char *elf_fname_t = NULL;
 
 static GOptionEntry entries[] =
 {
@@ -80,7 +81,8 @@ int main( int argc, char** argv )
 {
 	elf_section_t *text = NULL, *vectors = NULL;
 	int i2c_fd;
-	uint16_t fw;
+	uint16_t fw, next;
+	char *elf_fname;
 
 	config_load( &argc, &argv );
 	i2c_fd = i2c_config( i2c_device, i2c_address );
@@ -88,17 +90,26 @@ int main( int argc, char** argv )
 	/* Tell the msp430_fw code what the address is  */
 	msp430_fw_i2c_address = &i2c_address;
 
+	/* Get the firmware version.
+	   The MSP430 resets its firmware reception code upon receiving this. */
+	fw = msp430_get_fw_version( i2c_fd );
+	printf( "Existing firmware version %hx\n", fw );
+
+	/* Find out which ELF file we want (top or bottom) */
+	next = msp430_get_next_address( i2c_fd );
+	if( next == msp430_fw_bottom )
+		elf_fname = elf_fname_b;
+	else if( next == msp430_fw_top )
+		elf_fname = elf_fname_t;
+	else
+		g_error( "MSP430 is requesting unexpected address: %x", next );
+
 	elf_access_load_sections( elf_fname, &text, &vectors );
 	if( vectors->len != 32 )
 		g_error( ".vectors section incorrect length: %u should be 32", vectors->len );
 
 	printf( ".text: len=%u, addr=0x%x\n", text->len, text->addr );
 	printf( ".vectors: len=%u, addr=0x%x\n", vectors->len, vectors->addr );
-
-	/* Get the firmware version.
-	   The MSP430 resets its firmware reception code upon receiving this. */
-	fw = msp430_get_fw_version( i2c_fd );
-	printf( "Existing firmware version %hx\n", fw );
 
 	printf( "Writing .text\n" );
 	msp430_send_section( i2c_fd, text, TRUE );
@@ -170,12 +181,21 @@ static void config_file_load( const char* fname )
 		if( err != NULL )
 			g_error( "Failed to read %s.%s from config file: %s", dev_name, key, err->message );
 	}
+
+	/* Grab the top and bottom addresses */
+	if( !g_key_file_has_key( keyfile, dev_name, "bottom", NULL ) )
+		g_error( "%s.bottom config not found", dev_name );
+	if( !g_key_file_has_key( keyfile, dev_name, "top", NULL ) )
+		g_error( "%s.top config not found", dev_name );
+
+	msp430_fw_bottom = key_file_get_hex( keyfile, dev_name, "bottom", NULL );
+	msp430_fw_top = key_file_get_hex( keyfile, dev_name, "top", NULL );
 }
 
-static uint8_t key_file_get_hex( GKeyFile *key_file,
-				 const gchar *group_name,
-				 const gchar *key,
-				 GError **error )
+static unsigned long int key_file_get_hex( GKeyFile *key_file,
+					   const gchar *group_name,
+					   const gchar *key,
+					   GError **error )
 {
 	gchar *tmp;
 	unsigned long int v;
@@ -210,7 +230,7 @@ static void config_load( int *argc, char ***argv )
 	GError *error = NULL;
 	GOptionContext *context;
 
-	context = g_option_context_new( "ELF_FILE - flash MSP430s over I2C" );
+	context = g_option_context_new( "BOTTOM_ELF_FILE TOP_ELF_FILE - flash MSP430s over I2C" );
 	g_option_context_add_main_entries( context, entries, NULL );
 
 	/* Parse command line options */
@@ -227,11 +247,13 @@ static void config_load( int *argc, char ***argv )
 	}
 
 	/* Argument without letter is the elf filename */
-	if( *argc != 2 ) {
-		g_print ( "Error: ELF file name required.  See --help\n" );
+	if( *argc != 3 ) {
+		g_print( "Error: Two ELF files required.  See --help\n" );
 		exit(1);
 	}
-	elf_fname = (*argv)[1];
+
+	elf_fname_b = (*argv)[1];
+	elf_fname_t = (*argv)[2];
 
 	/* Load settings from the config file  */
 	config_file_load( config_fname );

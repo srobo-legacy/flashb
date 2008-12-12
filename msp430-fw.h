@@ -50,6 +50,9 @@ enum {
 extern uint8_t commands[NUM_COMMANDS];
 extern uint8_t* msp430_fw_i2c_address;
 
+extern uint16_t msp430_fw_bottom;
+extern uint16_t msp430_fw_top;
+
 /* Read the firmware version from the device */
 uint16_t msp430_get_fw_version( int fd );
 
