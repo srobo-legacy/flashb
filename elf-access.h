@@ -22,6 +22,7 @@ typedef struct {
 	uint8_t *data;
 	uint32_t len;
 	uint32_t addr;
+	char* name;
 } elf_section_t;
 
 /* Load */

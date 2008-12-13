@@ -75,10 +75,14 @@ void elf_access_load_sections( char* fname,
 		if( name == NULL )
 			g_error( "Couldn't get section name: %s", elf_errmsg(-1) );
 
-		if( strcmp( name, ".text" ) == 0 )
+		if( strcmp( name, ".text" ) == 0 ) {
 			*text = elf_access_load_section( section, hdr );
-		else if( strcmp( name, ".vectors" ) == 0 )
+			(*text)->name = ".text";
+		}
+		else if( strcmp( name, ".vectors" ) == 0 ) {
 			*vectors = elf_access_load_section( section, hdr );
+			(*vectors)->name = ".vectors";
+		}
 	}	
 
 	if( text == NULL )
