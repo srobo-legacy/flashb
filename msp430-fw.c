@@ -20,6 +20,8 @@ uint8_t* msp430_fw_i2c_address = NULL;
 uint16_t msp430_fw_bottom = 0;
 uint16_t msp430_fw_top = 0;
 
+static void graph( char* str, uint16_t done, uint16_t total );
+
 uint16_t msp430_get_fw_version( int fd )
 {
 	int32_t r;
@@ -77,8 +79,6 @@ void msp430_send_block( int fd,
 
 	b[5 + CHUNK_SIZE] = c;
 
-	printf( "Sending chunk with address %hx\n", addr );
-
 /* 	for( i=0; i<(6+CHUNK_SIZE); i++ ) */
 /* 		printf( "%hhu: %hhx\n", i, b[i] ); */
 
@@ -101,12 +101,9 @@ uint16_t msp430_get_next_address_once( int fd )
 
 	do {
 		r = i2c_smbus_read_word_data( fd, commands[CMD_FW_NEXT] );
-		if( r < 0 )
-			printf( "Failed to read next address: %m\n" );
 	} while ( r < 0 );
 
 	g_assert( r <= 0xffff );
-	printf( "next: %hx\n", (uint16_t)r );
 
 	return r;
 }
@@ -120,7 +117,6 @@ void msp430_send_section( int i2c_fd,
 
 	if( check_first ) {
 		next = msp430_get_next_address( i2c_fd );
-		printf( "msp430 waiting for address %hx\n", next );
 
 		if( next != section->addr )
 			g_error( "I've got the wrong binary -- need one that starts at %hx, got %hx\n", next, section->addr );
@@ -128,10 +124,12 @@ void msp430_send_section( int i2c_fd,
 	else
 		next = section->addr;
 
+	printf( " " );
+
 	while( next < (section->addr + section->len) 
 	       /* MSP430 indicates all firmware received with 0 */
 	       && next != 0 ) {
-		uint16_t rem;
+		uint16_t rem, done;
 		uint8_t *chunk;
 
 		/* Must be CHUNK_SIZE aligned */
@@ -139,8 +137,11 @@ void msp430_send_section( int i2c_fd,
 		g_assert( next >= section->addr );
 
 		chunk = section->data + (next - section->addr);
+
+		done = next - section->addr;
 		rem = section->len - (next - section->addr);
-		printf( "%hu bytes remaining\n", rem );
+
+		graph( section->name, done, section->len );
 
 		if( rem < CHUNK_SIZE ) {
 			/* Pad out to 16 bytes long */
@@ -168,6 +169,9 @@ void msp430_send_section( int i2c_fd,
 		if( check_first && next < section->addr )
 			next = section->addr;
 	}
+
+	graph( section->name, section->len, section->len );
+	printf ("\n");
 }
 
 void msp430_confirm_crc( int i2c_fd )
@@ -193,4 +197,27 @@ void msp430_confirm_crc( int i2c_fd )
 		g_error( "Failed to send confirmation command" );
 
 	i2c_pec_enable(i2c_fd);
+}
+
+static void graph( char *str, uint16_t done, uint16_t total )
+{
+	uint8_t w = 61 - strlen(str);
+	float r = ((float)done)/((float)total);
+	float p =  r * ((float)w);
+	uint8_t i;
+
+	printf("\r%s %4.4hx/%4.4hx (%3.0f%%) ", str, done, total,r*100.0);
+	for( i=0; i < p; i++ ) {
+		if( i == ((uint8_t)p) )
+			putchar('>');
+		else
+			putchar('=');
+	}
+
+	for( ; i < w; i++ )
+		putchar(' ');
+
+	putchar('|');
+
+	fflush(stdout);
 }

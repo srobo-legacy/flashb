@@ -104,17 +104,12 @@ int main( int argc, char** argv )
 	else
 		g_error( "MSP430 is requesting unexpected address: %x", next );
 
-	g_print( "Sending %s to MSP430", elf_fname );
+	g_print( "Sending %s to MSP430\n", elf_fname );
 	elf_access_load_sections( elf_fname, &text, &vectors );
 	if( vectors->len != 32 )
 		g_error( ".vectors section incorrect length: %u should be 32", vectors->len );
 
-	printf( ".text: len=%u, addr=0x%x\n", text->len, text->addr );
-	printf( ".vectors: len=%u, addr=0x%x\n", vectors->len, vectors->addr );
-
-	printf( "Writing .text\n" );
 	msp430_send_section( i2c_fd, text, TRUE );
-	printf( "Writing .vectors\n" );
 	msp430_send_section( i2c_fd, vectors, FALSE );
 	printf( "Confirming CRC\n" );
 	msp430_confirm_crc( i2c_fd );
@@ -164,7 +159,6 @@ static void config_file_load( const char* fname )
 	i2c_address = key_file_get_hex( keyfile, dev_name, "address", &err );
 	if( err != NULL )
 		g_error( "Failed to read %s.address: %s", dev_name, err->message );
-	printf( "device address: 0x%hhx\n", i2c_address );
 
 	/** Load in the commands **/
 	/* dev_name */
