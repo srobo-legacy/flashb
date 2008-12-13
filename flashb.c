@@ -104,6 +104,7 @@ int main( int argc, char** argv )
 	else
 		g_error( "MSP430 is requesting unexpected address: %x", next );
 
+	g_print( "Sending %s to MSP430", elf_fname );
 	elf_access_load_sections( elf_fname, &text, &vectors );
 	if( vectors->len != 32 )
 		g_error( ".vectors section incorrect length: %u should be 32", vectors->len );
