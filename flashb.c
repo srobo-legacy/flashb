@@ -77,12 +77,16 @@ static GOptionEntry entries[] =
 	{ NULL }
 };
 
+struct elf_file_t {
+	elf_section_t *text, *vectors;
+};
+
 int main( int argc, char** argv )
 {
-	elf_section_t *text = NULL, *vectors = NULL;
 	int i2c_fd;
 	uint16_t fw, next;
-	char *elf_fname;
+	struct elf_file_t ef_top, ef_bottom;
+	struct elf_file_t *tos;
 
 	config_load( &argc, &argv );
 	i2c_fd = i2c_config( i2c_device, i2c_address );
@@ -95,22 +99,36 @@ int main( int argc, char** argv )
 	fw = msp430_get_fw_version( i2c_fd );
 	printf( "Existing firmware version %hx\n", fw );
 
-	/* Find out which ELF file we want (top or bottom) */
+	/* Load the ELFs */
+	elf_access_load_sections( elf_fname_b, &ef_bottom.text, &ef_bottom.vectors );
+	elf_access_load_sections( elf_fname_t, &ef_top.text, &ef_top.vectors );
+
+	if( ef_bottom.text->addr > ef_top.text->addr ) {
+		/* Swap them */
+		struct elf_file_t tmp = ef_bottom;
+
+		ef_bottom = ef_top;
+		ef_top = tmp;
+	}
+
+	/* Find out which ELF file to send (top or bottom) */
 	next = msp430_get_next_address( i2c_fd );
-	if( next == msp430_fw_bottom )
-		elf_fname = elf_fname_b;
-	else if( next == msp430_fw_top )
-		elf_fname = elf_fname_t;
+	if( next == msp430_fw_bottom ) {
+		g_print("Sending bottom\n");
+		tos = &ef_bottom;
+	}
+	else if( next == msp430_fw_top ) {
+		g_print("Sending top\n");
+		tos = &ef_top;
+	}
 	else
 		g_error( "MSP430 is requesting unexpected address: %x", next );
 
-	g_print( "Sending %s to MSP430\n", elf_fname );
-	elf_access_load_sections( elf_fname, &text, &vectors );
-	if( vectors->len != 32 )
-		g_error( ".vectors section incorrect length: %u should be 32", vectors->len );
+	if( tos->vectors->len != 32 )
+		g_error( ".vectors section incorrect length: %u should be 32", tos->vectors->len );
 
-	msp430_send_section( i2c_fd, text, TRUE );
-	msp430_send_section( i2c_fd, vectors, FALSE );
+	msp430_send_section( i2c_fd, tos->text, TRUE );
+	msp430_send_section( i2c_fd, tos->vectors, FALSE );
 	printf( "Confirming CRC\n" );
 	msp430_confirm_crc( i2c_fd );
 
