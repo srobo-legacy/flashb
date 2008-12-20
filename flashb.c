@@ -81,6 +81,12 @@ struct elf_file_t {
 	elf_section_t *text, *vectors;
 };
 
+/* Open the two ELF files and work out which is top and which is bottom.
+ * Returns the two files in *bottom and *top. */
+static void load_elfs( char* fna, char* fnb,
+		       struct elf_file_t *bottom,
+		       struct elf_file_t *top );
+
 int main( int argc, char** argv )
 {
 	int i2c_fd;
@@ -99,26 +105,17 @@ int main( int argc, char** argv )
 	fw = msp430_get_fw_version( i2c_fd );
 	printf( "Existing firmware version %hx\n", fw );
 
-	/* Load the ELFs */
-	elf_access_load_sections( elf_fname_b, &ef_bottom.text, &ef_bottom.vectors );
-	elf_access_load_sections( elf_fname_t, &ef_top.text, &ef_top.vectors );
-
-	if( ef_bottom.text->addr > ef_top.text->addr ) {
-		/* Swap them */
-		struct elf_file_t tmp = ef_bottom;
-
-		ef_bottom = ef_top;
-		ef_top = tmp;
-	}
+	/* Load and sort the ELF files */
+	load_elfs( elf_fname_b, elf_fname_t, &ef_bottom, &ef_top );
 
 	/* Find out which ELF file to send (top or bottom) */
 	next = msp430_get_next_address( i2c_fd );
 	if( next == msp430_fw_bottom ) {
-		g_print("Sending bottom\n");
+		g_print("Sending bottom half\n");
 		tos = &ef_bottom;
 	}
 	else if( next == msp430_fw_top ) {
-		g_print("Sending top\n");
+		g_print("Sending top half\n");
 		tos = &ef_top;
 	}
 	else
@@ -284,4 +281,30 @@ char* conf_get_cmd_str( uint8_t cmd )
 
 	g_error( "Command number %hhu not found in table", cmd );
 	return NULL;
+}
+
+static void load_elfs( char* fna, char* fnb,
+		       struct elf_file_t *bottom,
+		       struct elf_file_t *top )
+{
+	g_assert( bottom != NULL && top != NULL );
+
+	/* Load the ELFs */
+	elf_access_load_sections( fna, &bottom->text, &bottom->vectors );
+	elf_access_load_sections( fnb, &top->text, &top->vectors );
+
+	if( bottom->text->addr > top->text->addr ) {
+		/* Swap them */
+		struct elf_file_t tmp = *bottom;
+
+		*bottom = *top;
+		*top = tmp;
+	}
+
+	if( bottom->text->addr != msp430_fw_bottom )
+		g_error( "Lower ELF file has .text offset %hx -- should be %hx\n", bottom->text->addr, msp430_fw_bottom );
+
+	if( top->text->addr != msp430_fw_top )
+		g_error( "Upper ELF file has .text offset %hx -- should be %hx\n", top->text->addr, msp430_fw_top );
+
 }
