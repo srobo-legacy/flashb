@@ -5,7 +5,8 @@ LDFLAGS += `pkg-config $(PKG_CONFIG_ARGS) --libs glib-2.0`
 
 LDFLAGS += -lelf
 
-flashb: flashb.c elf-access.c i2c.c smbus_pec.c msp430-fw.c
+flashb: flashb.c elf-access.c i2c.c smbus_pec.c msp430-fw.c i2c-blk.c \
+	sr-i2c.c
 	$(CC) -o flashb   $^ -lelf ${LDFLAGS} ${CFLAGS}
 
 elf-access.c: elf-access.h

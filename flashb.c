@@ -29,6 +29,8 @@
 #include "i2c.h"
 #include "smbus_pec.h"
 #include "msp430-fw.h"
+#include "i2c-blk.h"
+#include "sr-i2c.h"
 
 /* Sort out all the configuration loading from the cli and config file */
 static void config_load( int *argc, char ***argv );
@@ -99,6 +101,7 @@ int main( int argc, char** argv )
 
 	/* Tell the msp430_fw code what the address is  */
 	msp430_fw_i2c_address = &i2c_address;
+	i2c_blk_addr = &i2c_address;
 
 	/* Get the firmware version.
 	   The MSP430 resets its firmware reception code upon receiving this. */
@@ -200,6 +203,11 @@ static void config_file_load( const char* fname )
 
 	msp430_fw_bottom = key_file_get_hex( keyfile, dev_name, "bottom", NULL );
 	msp430_fw_top = key_file_get_hex( keyfile, dev_name, "top", NULL );
+
+	if( g_key_file_has_key( keyfile, dev_name, "cmd_format", NULL ) )
+		sr_i2c_cmd_format = g_key_file_get_integer( keyfile, dev_name, "cmd_format", NULL );
+	else
+		sr_i2c_cmd_format = SR_I2C_NO_LEN;
 }
 
 static unsigned long int key_file_get_hex( GKeyFile *key_file,

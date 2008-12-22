@@ -14,6 +14,8 @@
     along with this program; if not, write to the Free Software
     Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA. */
 #include "msp430-fw.h"
+#include "sr-i2c.h"
+#include "i2c-blk.h"
 
 uint8_t commands[NUM_COMMANDS];
 uint8_t* msp430_fw_i2c_address = NULL;
@@ -24,20 +26,17 @@ static void graph( char* str, uint16_t done, uint16_t total );
 
 uint16_t msp430_get_fw_version( int fd )
 {
-	int32_t r;
+	uint16_t r;
 
-	r = i2c_smbus_read_word_data( fd, commands[CMD_FW_VER] );
-	if( r < 0 )
-		g_error( "Failed to read firmware version: %m" );
-
-	g_assert( r <= 0xffff );
+	while( sr_i2c_read_word( fd, commands[CMD_FW_VER], &r ) < 0 )
+		g_print( "Failed to read firmware version... retrying.\n" );
 
 	return r;
 }
 
 uint16_t msp430_get_next_address( int fd )
 {
-	int32_t r1, r2;
+	uint16_t r1, r2;
 
 	do {
 		r1 = msp430_get_next_address_once(fd);
@@ -52,58 +51,29 @@ void msp430_send_block( int fd,
 			uint16_t addr,
 			uint8_t *chunk )
 {
-	uint8_t b[6 + CHUNK_SIZE];
-	uint8_t c, i;
-	int w;
-	/* We have to do the block transmit ourselves */
+	uint8_t b[4 + CHUNK_SIZE];
 
 	/* Format:
-	   0: Command
-	   1-2: Firmware version (1 is lsb)
-	   3-4: Address (3 is lsb)
-	   5-20: The data
-	   21: The checksum */
+	   0-1: Firmware version (1 is lsb)
+	   2-3: Address (3 is lsb)
+	   4-19: The data */
 
-	b[0] = commands[CMD_FW_CHUNK];
-	b[1] = fw_ver & 0xff;
-	b[2] = (fw_ver >> 8) & 0xff;
-	b[3] = addr & 0xff;
-	b[4] = (addr >> 8) & 0xff;
+	b[0] = fw_ver & 0xff;
+	b[1] = (fw_ver >> 8) & 0xff;
+	b[2] = addr & 0xff;
+	b[3] = (addr >> 8) & 0xff;
 
-	g_memmove( b + 5, chunk, CHUNK_SIZE );
+	g_memmove( b + 4, chunk, CHUNK_SIZE );
 
-	/* Checksum the lot */
-	c = crc8( (*msp430_fw_i2c_address) << 1 );
-	for( i=0; i < (5+CHUNK_SIZE); i++)
-		c = crc8( c ^ b[i] );
-
-	b[5 + CHUNK_SIZE] = c;
-
-/* 	for( i=0; i<(6+CHUNK_SIZE); i++ ) */
-/* 		printf( "%hhu: %hhx\n", i, b[i] ); */
-
-	/* Disable the PEC for this operation */
-	i2c_pec_disable(fd);
-
-	w = write( fd, b, 6 + CHUNK_SIZE );
-	if( w == -1 )
-		g_error( "Failed to send block: %m\n" );
-	if( w != 6 + CHUNK_SIZE )
-		g_error( "Failed to write all data.  Only sent %i of %i",
-			 w, 6 + CHUNK_SIZE );
-
-	i2c_pec_enable(fd);
+	if( sr_i2c_block_write( fd, commands[CMD_FW_CHUNK], CHUNK_SIZE + 4, b, *msp430_fw_i2c_address ) < 0 )
+		g_error( "Failed to write data" );
 }
 
 uint16_t msp430_get_next_address_once( int fd )
 {
-	int32_t r;
+	uint16_t r;
 
-	do {
-		r = i2c_smbus_read_word_data( fd, commands[CMD_FW_NEXT] );
-	} while ( r < 0 );
-
-	g_assert( r <= 0xffff );
+	while( sr_i2c_read_word( fd, commands[CMD_FW_NEXT], &r ) < 0 );
 
 	return r;
 }
@@ -155,7 +125,7 @@ void msp430_send_section( int i2c_fd,
 			msp430_send_block( i2c_fd, 
 					   0, 
 					   next, 
-					   chunk );
+					   b );
 		}
 		else
 			msp430_send_block( i2c_fd, 
@@ -176,27 +146,14 @@ void msp430_send_section( int i2c_fd,
 
 void msp430_confirm_crc( int i2c_fd )
 {
-	uint8_t buf[6], i, c;
+	uint8_t buf[4];
 
 	/* Format:
-	 * 0: Command (CMD_FW_CONFIRM)
-	 * 1-4: Password (currently ignored)
-	 * 5: CRC */
-	buf[0] = commands[CMD_FW_CONFIRM];
-	buf[1] = buf[2] = buf[3] = buf[4] = 0;
+	 * 0-3: Password (currently ignored) */
 
-	/* TODO move block transmission into function */
-	c = crc8( (*msp430_fw_i2c_address) << 1 );
-	for( i=0; i < 5; i++)
-		c = crc8( c ^ buf[i] );
-	buf[5] = c;
+	buf[0] = buf[1] = buf[2] = buf[3] = 0;
 
-	i2c_pec_disable(i2c_fd);
-
-	if( write( i2c_fd, buf, 6 ) != 6 )
-		g_error( "Failed to send confirmation command" );
-
-	i2c_pec_enable(i2c_fd);
+	while( sr_i2c_block_write( i2c_fd, commands[CMD_FW_CONFIRM], 4, buf, *msp430_fw_i2c_address ) < 0 );
 }
 
 static void graph( char *str, uint16_t done, uint16_t total )
