@@ -70,12 +70,14 @@ static uint8_t i2c_address = 0;
 static char* dev_name = NULL;
 static char *elf_fname_b = NULL;
 static char *elf_fname_t = NULL;
+static gboolean force_load = FALSE;
 
 static GOptionEntry entries[] =
 {
 	{ "config", 'c', 0, G_OPTION_ARG_FILENAME, &config_fname, "Config file path", "PATH" },
 	{ "device", 'd', 0, G_OPTION_ARG_FILENAME, &i2c_device, "I2C device path", "DEV_PATH" },
 	{ "name", 'n', 0, G_OPTION_ARG_STRING, &dev_name, "Slave device name in config file.", "NAME" },
+	{ "force", 'f', 0, G_OPTION_ARG_NONE, &force_load, "Force update, even if target has given version", NULL },
 	{ NULL }
 };
 
@@ -88,6 +90,9 @@ struct elf_file_t {
 static void load_elfs( char* fna, char* fnb,
 		       struct elf_file_t *bottom,
 		       struct elf_file_t *top );
+
+/* Get the version number of the given ELF file */
+static uint16_t elf_fw_version( struct elf_file_t *e );
 
 int main( int argc, char** argv )
 {
@@ -126,6 +131,16 @@ int main( int argc, char** argv )
 
 	if( tos->vectors->len != 32 )
 		g_error( ".vectors section incorrect length: %u should be 32", tos->vectors->len );
+
+	if( elf_fw_version( &ef_bottom ) != elf_fw_version( &ef_top ) )
+		g_error( "Supplied ELF files have different version numbers" );
+
+	if( !force_load && fw == elf_fw_version( tos ) ) {
+		g_print( "No update required\n" );
+		return 0;
+	}
+
+	printf( "Sending firmware version %hu.\n", elf_fw_version(tos) );
 
 	msp430_send_section( i2c_fd, tos->text, TRUE );
 	msp430_send_section( i2c_fd, tos->vectors, FALSE );
@@ -315,4 +330,17 @@ static void load_elfs( char* fna, char* fnb,
 	if( top->text->addr != msp430_fw_top )
 		g_error( "Upper ELF file has .text offset %hx -- should be %hx\n", top->text->addr, msp430_fw_top );
 
+}
+
+static uint16_t elf_fw_version( struct elf_file_t *e )
+{
+	uint16_t ver = 0;
+
+	if( e->text->len < 2 )
+		g_error( ".text section is too short to contain firmware version!" );
+
+	ver = e->text->data[0];
+	ver |= ((uint16_t)e->text->data[1]) << 8;
+
+	return ver;
 }
