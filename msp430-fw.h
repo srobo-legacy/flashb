@@ -53,8 +53,11 @@ extern uint8_t* msp430_fw_i2c_address;
 extern uint16_t msp430_fw_bottom;
 extern uint16_t msp430_fw_top;
 
-/* Read the firmware version from the device */
-uint16_t msp430_get_fw_version( int fd );
+/* Read the firmware version from the device 
+   Only try a few times if give_up is TRUE. 
+   Return FALSE on failure.
+   Result put in *ver. */
+gboolean msp430_get_fw_version( int fd, uint16_t *ver, gboolean give_up );
 
 /* Read the next address the device is expecting */
 uint16_t msp430_get_next_address( int fd );

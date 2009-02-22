@@ -17,6 +17,9 @@
 #include "sr-i2c.h"
 #include "i2c-blk.h"
 
+/* Number of times to retry 'calling' the device */
+#define MSP430_FW_RETRIES 10
+
 uint8_t commands[NUM_COMMANDS];
 uint8_t* msp430_fw_i2c_address = NULL;
 uint16_t msp430_fw_bottom = 0;
@@ -24,14 +27,26 @@ uint16_t msp430_fw_top = 0;
 
 static void graph( char* str, uint16_t done, uint16_t total );
 
-uint16_t msp430_get_fw_version( int fd )
+gboolean msp430_get_fw_version( int fd, uint16_t *ver, gboolean give_up )
 {
-	uint16_t r;
+	uint16_t c = 0;
+	g_assert( ver != NULL );
 
-	while( sr_i2c_read_word( fd, commands[CMD_FW_VER], &r ) < 0 )
-		g_print( "Failed to read firmware version... retrying.\n" );
+	while( sr_i2c_read_word( fd, commands[CMD_FW_VER], ver ) < 0 ) {
 
-	return r;
+		if ( give_up ) {
+			if( c > MSP430_FW_RETRIES )
+				return FALSE;
+
+			/* Spend a little more time when in "give-up" mode */
+			/* Who knows, maybe some noise will pass... */
+			usleep(20000);
+			c++;
+		} else
+			g_print( "Failed to read firmware version... retrying.\n" );
+	}
+
+	return TRUE;
 }
 
 uint16_t msp430_get_next_address( int fd )

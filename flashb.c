@@ -71,6 +71,7 @@ static char* dev_name = NULL;
 static char *elf_fname_b = NULL;
 static char *elf_fname_t = NULL;
 static gboolean force_load = FALSE;
+static gboolean give_up = FALSE;
 
 static GOptionEntry entries[] =
 {
@@ -78,6 +79,7 @@ static GOptionEntry entries[] =
 	{ "device", 'd', 0, G_OPTION_ARG_FILENAME, &i2c_device, "I2C device path", "DEV_PATH" },
 	{ "name", 'n', 0, G_OPTION_ARG_STRING, &dev_name, "Slave device name in config file.", "NAME" },
 	{ "force", 'f', 0, G_OPTION_ARG_NONE, &force_load, "Force update, even if target has given version", NULL },
+	{ "give-up", 'g', 0, G_OPTION_ARG_NONE, &give_up, "Give up if comms with the device fail initially", NULL },
 	{ NULL }
 };
 
@@ -110,7 +112,10 @@ int main( int argc, char** argv )
 
 	/* Get the firmware version.
 	   The MSP430 resets its firmware reception code upon receiving this. */
-	fw = msp430_get_fw_version( i2c_fd );
+	if( !msp430_get_fw_version( i2c_fd, &fw, give_up ) ) {
+		g_print( "'%s' not answering :-(  Giving up.\n", dev_name );
+		return 0;
+	}
 	printf( "Existing firmware version %hx\n", fw );
 
 	/* Load and sort the ELF files */
