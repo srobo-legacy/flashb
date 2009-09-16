@@ -9,6 +9,7 @@
 #include <unistd.h>
 #include <glib.h>
 #include <string.h>
+#define DEBUG 0
 
 sr_i2c_cmd_t sr_i2c_cmd_format = SR_I2C_NO_LEN;
 
@@ -38,6 +39,9 @@ int sr_i2c_read_byte( int fd, uint8_t cmd, uint8_t *b )
 	} break;
 	}
 
+	if( DEBUG )
+		printf( "sr_i2c_read_byte read: %2.2hhx\n", *b );
+
 	return 0;
 }
 
@@ -66,6 +70,9 @@ int sr_i2c_read_word( int fd, uint8_t cmd, uint16_t *b )
 			*b = i2c_blk_buf[0] | (((uint16_t)i2c_blk_buf[1]) << 8);
 	} break;
 	}
+
+	if( DEBUG )
+		printf( "sr_i2c_read_word cmd %hhx read %4.4hx\n", cmd, *b );
 
 	return 0;
 }
