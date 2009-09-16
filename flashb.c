@@ -132,7 +132,7 @@ int main( int argc, char** argv )
 		tos = &ef_top;
 	}
 	else
-		g_error( "MSP430 is requesting unexpected address: %x", next );
+		g_error( "MSP430 is requesting unexpected address: 0x%4.4hx", next );
 
 	if( tos->vectors->len != 32 )
 		g_error( ".vectors section incorrect length: %u should be 32", tos->vectors->len );
