@@ -28,6 +28,10 @@
 static elf_section_t* elf_access_load_section( Elf_Scn *section,
 					       Elf32_Shdr *header );
 
+static Elf32_Addr elf_access_find_section_paddr( Elf *elf,
+						 Elf32_Ehdr *ehdr,
+						 elf_section_t *sec );
+
 void elf_access_load_sections( char* fname,
 			       elf_section_t **text,
 			       elf_section_t **vectors )
@@ -37,6 +41,10 @@ void elf_access_load_sections( char* fname,
 	size_t stable;
 	Elf32_Ehdr *ehdr;
 	Elf_Scn *section;
+	elf_section_t *data = NULL, *tmp = NULL;
+	elf_section_t *dt = NULL;
+	Elf32_Addr data_paddr;
+
 	g_assert( fname != NULL && text != NULL && vectors != NULL );
 
         if( elf_version(EV_CURRENT) == EV_NONE )
@@ -83,12 +91,45 @@ void elf_access_load_sections( char* fname,
 			*vectors = elf_access_load_section( section, hdr );
 			(*vectors)->name = ".vectors";
 		}
+		else if( strcmp( name, ".data" ) == 0 ) {
+			data = elf_access_load_section( section, hdr );
+			data->name = ".data";
+		}
 	}	
 
 	if( text == NULL )
 		g_error( ".text section not found in ELF file" );
 	if( vectors == NULL )
 		g_error( ".vectors section not found in ELF file" );
+	/* Assume .data section has to be present  */
+	if( data == NULL )
+		g_error( ".data section not found in ELF file" );
+
+	/*** Hack alert... ***/
+	/* Create a merged section containing .text and .data */
+	/* Merge data onto the end of .text */
+	dt = g_malloc( sizeof(elf_section_t) );
+	
+	/* Find the address at which we have to stick .data into flash */
+	data_paddr = elf_access_find_section_paddr( elf, ehdr, data );
+
+	/* We only support this at the moment */
+	g_assert( data_paddr > (*text)->addr );
+
+	dt->addr = (*text)->addr;
+	dt->name = "data-text";
+	dt->len = (data_paddr + data->len) - (*text)->addr;
+	dt->data = g_malloc( dt->len );
+
+	/* Copy .text and .data in */
+	g_memmove( dt->data, ((*text)->data), (*text)->len );
+	g_memmove( dt->data + ( data_paddr - (*text)->addr ),
+		   data->data, data->len );
+
+	tmp = *text;
+	*text = dt;
+	g_free( tmp->data );
+	g_free( tmp );
 
 	elf_end( elf );
 	close( efd );
@@ -105,6 +146,7 @@ static elf_section_t* elf_access_load_section( Elf_Scn *section, Elf32_Shdr *hea
 	s->data = tpos = g_malloc( header->sh_size );
 	s->len = header->sh_size;
 	s->addr = header->sh_addr;
+	s->offset = header->sh_offset;
 
 	/* The ELF library returns data in multiple buffers, which we iterate through */
 	while ( (d = elf_rawdata( section, d )) != NULL )
@@ -114,4 +156,28 @@ static elf_section_t* elf_access_load_section( Elf_Scn *section, Elf32_Shdr *hea
 	}
 
 	return s;
+}
+
+static Elf32_Addr elf_access_find_section_paddr( Elf *elf,
+						 Elf32_Ehdr *ehdr,
+						 elf_section_t *sec )
+{
+	Elf32_Phdr *phdr; 
+	Elf32_Half i;
+
+	phdr = elf32_getphdr( elf );
+	if( phdr == NULL )
+		g_error( "Failed to get elf program header" );
+
+	/* Number of entries in phdr is ehdr->e_phnum */
+	for( i=0; i < ehdr->e_phnum; i++ ) {
+		Elf32_Phdr *p = phdr + i;
+
+		if( p->p_offset == sec->offset )
+			return p->p_paddr;
+	}
+
+	g_error( "Failed to find section in program header" );
+
+	return 0;
 }

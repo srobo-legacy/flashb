@@ -22,6 +22,9 @@ typedef struct {
 	uint8_t *data;
 	uint32_t len;
 	uint32_t addr;
+
+	/* The offset within the elf file */
+	uint32_t offset;
 	char* name;
 } elf_section_t;
 
