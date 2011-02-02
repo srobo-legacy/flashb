@@ -23,6 +23,7 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <string.h>
+#include <sric.h>
 
 #include "i2c-dev.h"
 #include "elf-access.h"
@@ -98,12 +99,29 @@ static uint16_t elf_fw_version( struct elf_file_t *e );
 
 int main( int argc, char** argv )
 {
+	sric_context ctx;
 	int i2c_fd;
 	uint16_t fw, next;
 	struct elf_file_t ef_top, ef_bottom;
 	struct elf_file_t *tos;
 
 	config_load( &argc, &argv );
+
+	ctx = sric_init();
+	if (sric_get_error(ctx) & SRIC_ERROR_SRICD) {
+		g_print("Failed to connect to sricd.\n");
+		return 0;
+	}
+
+	const sric_device* device = NULL;
+	while((device = sric_enumerate_devices(ctx, device))) {
+		g_print("Address: %i\tType: %i\n", device->address, device->type);
+	}
+
+	sric_quit(ctx);
+
+
+	return 0;
 	i2c_fd = i2c_config( i2c_device, i2c_address );
 
 	/* Tell the msp430_fw code what the address is  */
