@@ -113,6 +113,7 @@ int main( int argc, char** argv )
 	}
 
 	const sric_device* device = NULL;
+	/* Used to keep count of the index of the current board type */
 	uint8_t board_counter = 0;
 	while((device = sric_enumerate_devices(ctx, device))) {
 		g_print("Address: %i\tType: %i\n", device->address, device->type);
@@ -126,6 +127,9 @@ int main( int argc, char** argv )
 			g_print( "'%s[%i]' not answering, skipping\n", dev_name, board_counter );
 			continue;
 		}
+
+		board_counter++;
+
 		printf( "Existing firmware version %hx\n", fw );
 
 		/* Load and sort the ELF files */
