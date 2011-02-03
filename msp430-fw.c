@@ -17,6 +17,8 @@
 
 /* Number of times to retry 'calling' the device */
 #define MSP430_FW_RETRIES 10
+/* How many milliseconds to wait for a response from a device */
+#define MSP430_FW_TIMEOUT 200
 
 uint8_t commands[NUM_COMMANDS];
 uint8_t* msp430_fw_i2c_address = NULL;
@@ -33,21 +35,24 @@ gboolean msp430_get_fw_version( sric_context ctx,
 	uint16_t c = 0;
 	g_assert( ver != NULL );
 
-#if 0
-	while( sr_i2c_read_word( fd, commands[CMD_FW_VER], ver ) < 0 ) {
+	sric_frame msg, rtn;
+	msg.address = device->address;
+	msg.note = -1;
+	msg.payload_length = 1;
+	msg.payload[0] = commands[CMD_FW_VER];
 
-		if ( give_up ) {
-			if( c > MSP430_FW_RETRIES )
+	while(sric_txrx(ctx, &msg, &rtn, MSP430_FW_TIMEOUT)) {
+		if (give_up) {
+			if (c > MSP430_FW_RETRIES)
 				return FALSE;
-
-			/* Spend a little more time when in "give-up" mode */
-			/* Who knows, maybe some noise will pass... */
-			usleep(20000);
 			c++;
-		} else
-			g_print( "Failed to read firmware version... retrying.\n" );
+		} else {
+			g_print( "Failed to read firmware version... retrying. Error: %i\n", sric_get_error(ctx) );
+		}
 	}
-#endif
+
+	*ver = rtn.payload[0];
+	*ver |= rtn.payload[1] << 8;
 
 	return TRUE;
 }
