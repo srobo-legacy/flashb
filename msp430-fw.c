@@ -97,7 +97,16 @@ uint16_t msp430_get_next_address_once( sric_context ctx, const sric_device *devi
 {
 	uint16_t r;
 
-	/*while( sr_i2c_read_word( fd, commands[CMD_FW_NEXT], &r ) < 0 );*/
+	sric_frame msg, rtn;
+	msg.address = device->address;
+	msg.note = -1;
+	msg.payload_length = 1;
+	msg.payload[0] = commands[CMD_FW_NEXT];
+
+	while (sric_txrx(ctx, &msg, &rtn, MSP430_FW_TIMEOUT));
+
+	r = rtn.payload[0];
+	r |= rtn.payload[1] << 8;
 
 	return r;
 }
