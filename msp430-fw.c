@@ -196,7 +196,14 @@ void msp430_confirm_crc( sric_context ctx, const sric_device *device )
 
 	buf[0] = buf[1] = buf[2] = buf[3] = 0;
 
-	/*while( sr_i2c_block_write( i2c_fd, commands[CMD_FW_CONFIRM], 4, buf, *msp430_fw_i2c_address ) < 0 );*/
+	sric_frame msg, rtn;
+	msg.address = device->address;
+	msg.note = -1;
+	msg.payload_length = 1+4;
+	msg.payload[0] = commands[CMD_FW_CONFIRM];
+	g_memmove(msg.payload+1, buf, 4);
+
+	while(sric_txrx(ctx, &msg, &rtn, MSP430_FW_TIMEOUT));
 }
 
 static void graph( char *str, uint16_t done, uint16_t total )
