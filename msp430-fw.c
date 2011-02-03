@@ -89,8 +89,15 @@ void msp430_send_block( sric_context ctx,
 
 	g_memmove( b + 4, chunk, CHUNK_SIZE );
 
-	/*if( sr_i2c_block_write( fd, commands[CMD_FW_CHUNK], CHUNK_SIZE + 4, b, *msp430_fw_i2c_address ) < 0 )
-		g_error( "Failed to write data" );*/
+	sric_frame msg, rtn;
+	msg.address = device->address;
+	msg.note = -1;
+	msg.payload_length = 1+4+CHUNK_SIZE;
+	msg.payload[0] = commands[CMD_FW_CHUNK];
+	g_memmove(msg.payload+1, b, 4+CHUNK_SIZE);
+
+	if (sric_txrx(ctx, &msg, &rtn, MSP430_FW_TIMEOUT))
+		g_error( "Failed to write data" );
 }
 
 uint16_t msp430_get_next_address_once( sric_context ctx, const sric_device *device )
