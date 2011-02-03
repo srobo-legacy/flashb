@@ -22,10 +22,8 @@
 #include <stdio.h>
 #include <glib.h>
 #include <string.h>
+#include <sric.h>
 
-#include "i2c-dev.h"
-#include "i2c.h"
-#include "smbus_pec.h"
 #include "elf-access.h"
 
 #define CHUNK_SIZE 16
@@ -48,7 +46,6 @@ enum {
 };
 
 extern uint8_t commands[NUM_COMMANDS];
-extern uint8_t* msp430_fw_i2c_address;
 
 extern uint16_t msp430_fw_bottom;
 extern uint16_t msp430_fw_top;
@@ -57,12 +54,12 @@ extern uint16_t msp430_fw_top;
    Only try a few times if give_up is TRUE. 
    Return FALSE on failure.
    Result put in *ver. */
-gboolean msp430_get_fw_version( int fd, uint16_t *ver, gboolean give_up );
+gboolean msp430_get_fw_version( sric_context ctx, const sric_device* dev, uint16_t *ver, gboolean give_up );
 
 /* Read the next address the device is expecting */
-uint16_t msp430_get_next_address( int fd );
+uint16_t msp430_get_next_address( sric_context ctx, const sric_device* dev );
 
-uint16_t msp430_get_next_address_once( int fd );
+uint16_t msp430_get_next_address_once( sric_context ctx, const sric_device* dev );
 
 /* Send a 16 byte chunk of firmware to the msp430.
    Arguments:
@@ -70,7 +67,8 @@ uint16_t msp430_get_next_address_once( int fd );
     - fw_ver: The firmware version
     -   addr: The chunk address
     -  chunk: Pointer to the 16 byte chunk of data */
-void msp430_send_block( int fd, 
+void msp430_send_block( sric_context ctx,
+			const sric_device* dev,
 			uint16_t fw_ver,
 			uint16_t addr,
 			uint8_t *chunk );
@@ -82,11 +80,12 @@ void msp430_send_block( int fd,
     - check_first: FALSE means ignore the first expected address read from the MSP430.
     		   This is useful for when the msp430 will accept data for
 		   another block of memory -- i.e. the IVT. */
-void msp430_send_section( int fd,
+void msp430_send_section( sric_context ctx,
+			  const sric_device* dev,
 			  elf_section_t *section, 
 			  gboolean check_first );
 
 /* Confirm that the checksum the msp430 calculated is valid */
-void msp430_confirm_crc( int i2c_fd );
+void msp430_confirm_crc( sric_context ctx, const sric_device* dev );
 
 #endif	/* __MSP430_FW */

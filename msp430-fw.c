@@ -14,8 +14,6 @@
     along with this program; if not, write to the Free Software
     Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA. */
 #include "msp430-fw.h"
-#include "sr-i2c.h"
-#include "i2c-blk.h"
 
 /* Number of times to retry 'calling' the device */
 #define MSP430_FW_RETRIES 10
@@ -27,11 +25,15 @@ uint16_t msp430_fw_top = 0;
 
 static void graph( char* str, uint16_t done, uint16_t total );
 
-gboolean msp430_get_fw_version( int fd, uint16_t *ver, gboolean give_up )
+gboolean msp430_get_fw_version( sric_context ctx,
+                                const sric_device *device,
+                                uint16_t *ver,
+                                gboolean give_up )
 {
 	uint16_t c = 0;
 	g_assert( ver != NULL );
 
+#if 0
 	while( sr_i2c_read_word( fd, commands[CMD_FW_VER], ver ) < 0 ) {
 
 		if ( give_up ) {
@@ -45,23 +47,25 @@ gboolean msp430_get_fw_version( int fd, uint16_t *ver, gboolean give_up )
 		} else
 			g_print( "Failed to read firmware version... retrying.\n" );
 	}
+#endif
 
 	return TRUE;
 }
 
-uint16_t msp430_get_next_address( int fd )
+uint16_t msp430_get_next_address( sric_context ctx, const sric_device *device )
 {
 	uint16_t r1, r2;
 
 	do {
-		r1 = msp430_get_next_address_once(fd);
-		r2 = msp430_get_next_address_once(fd);
+		r1 = msp430_get_next_address_once(ctx, device);
+		r2 = msp430_get_next_address_once(ctx, device);
 	} while ( r1 != r2 );
 
 	return r1;
 }
 
-void msp430_send_block( int fd, 
+void msp430_send_block( sric_context ctx,
+			const sric_device *device,
 			uint16_t fw_ver,
 			uint16_t addr,
 			uint8_t *chunk )
@@ -80,20 +84,21 @@ void msp430_send_block( int fd,
 
 	g_memmove( b + 4, chunk, CHUNK_SIZE );
 
-	if( sr_i2c_block_write( fd, commands[CMD_FW_CHUNK], CHUNK_SIZE + 4, b, *msp430_fw_i2c_address ) < 0 )
-		g_error( "Failed to write data" );
+	/*if( sr_i2c_block_write( fd, commands[CMD_FW_CHUNK], CHUNK_SIZE + 4, b, *msp430_fw_i2c_address ) < 0 )
+		g_error( "Failed to write data" );*/
 }
 
-uint16_t msp430_get_next_address_once( int fd )
+uint16_t msp430_get_next_address_once( sric_context ctx, const sric_device *device )
 {
 	uint16_t r;
 
-	while( sr_i2c_read_word( fd, commands[CMD_FW_NEXT], &r ) < 0 );
+	/*while( sr_i2c_read_word( fd, commands[CMD_FW_NEXT], &r ) < 0 );*/
 
 	return r;
 }
 
-void msp430_send_section( int i2c_fd,
+void msp430_send_section( sric_context ctx,
+			  const sric_device *device,
 			  elf_section_t *section, 
 			  gboolean check_first )
 {
@@ -101,7 +106,7 @@ void msp430_send_section( int i2c_fd,
 	g_assert( section != NULL );
 
 	if( check_first ) {
-		next = msp430_get_next_address( i2c_fd );
+		next = msp430_get_next_address( ctx, device );
 
 		if( next != section->addr )
 			g_error( "I've got the wrong binary -- need one that starts at %hx, got %hx\n", next, section->addr );
@@ -137,18 +142,20 @@ void msp430_send_section( int i2c_fd,
 			for( i=rem; i<CHUNK_SIZE; i++ )
 				b[i] = 0xaa;
 
-			msp430_send_block( i2c_fd, 
+			msp430_send_block( ctx,
+					   device,
 					   0, 
 					   next, 
 					   b );
 		}
 		else
-			msp430_send_block( i2c_fd, 
+			msp430_send_block( ctx,
+					   device,
 					   0, 
 					   next, 
 					   chunk );
 
-		next = msp430_get_next_address( i2c_fd );
+		next = msp430_get_next_address( ctx, device );
 
 		/* May have failed */
 		if( check_first && next < section->addr )
@@ -159,7 +166,7 @@ void msp430_send_section( int i2c_fd,
 	printf ("\n");
 }
 
-void msp430_confirm_crc( int i2c_fd )
+void msp430_confirm_crc( sric_context ctx, const sric_device *device )
 {
 	uint8_t buf[4];
 
@@ -168,7 +175,7 @@ void msp430_confirm_crc( int i2c_fd )
 
 	buf[0] = buf[1] = buf[2] = buf[3] = 0;
 
-	while( sr_i2c_block_write( i2c_fd, commands[CMD_FW_CONFIRM], 4, buf, *msp430_fw_i2c_address ) < 0 );
+	/*while( sr_i2c_block_write( i2c_fd, commands[CMD_FW_CONFIRM], 4, buf, *msp430_fw_i2c_address ) < 0 );*/
 }
 
 static void graph( char *str, uint16_t done, uint16_t total )

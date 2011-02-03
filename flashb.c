@@ -67,7 +67,7 @@ char* conf_get_cmd_str( uint8_t cmd );
 
 static char* config_fname = "flashb.config";
 static char* i2c_device = NULL;
-static uint8_t i2c_address = 0;
+static uint8_t board_type = 0;
 static char* dev_name = NULL;
 static char *elf_fname_b = NULL;
 static char *elf_fname_t = NULL;
@@ -100,7 +100,6 @@ static uint16_t elf_fw_version( struct elf_file_t *e );
 int main( int argc, char** argv )
 {
 	sric_context ctx;
-	int i2c_fd;
 	uint16_t fw, next;
 	struct elf_file_t ef_top, ef_bottom;
 	struct elf_file_t *tos;
@@ -114,61 +113,57 @@ int main( int argc, char** argv )
 	}
 
 	const sric_device* device = NULL;
+	uint8_t board_counter = 0;
 	while((device = sric_enumerate_devices(ctx, device))) {
 		g_print("Address: %i\tType: %i\n", device->address, device->type);
+
+		if (device->type != board_type)
+			continue;
+
+		/* Get the firmware version.
+		   The MSP430 resets its firmware reception code upon receiving this. */
+		if( !msp430_get_fw_version( ctx, device, &fw, give_up ) ) {
+			g_print( "'%s[%i]' not answering, skipping\n", dev_name, board_counter );
+			continue;
+		}
+		printf( "Existing firmware version %hx\n", fw );
+
+		/* Load and sort the ELF files */
+		load_elfs( elf_fname_b, elf_fname_t, &ef_bottom, &ef_top );
+
+		/* Find out which ELF file to send (top or bottom) */
+		next = msp430_get_next_address( ctx, device );
+		if( next == msp430_fw_bottom ) {
+			g_print("Sending bottom half\n");
+			tos = &ef_bottom;
+		}
+		else if( next == msp430_fw_top ) {
+			g_print("Sending top half\n");
+			tos = &ef_top;
+		}
+		else
+			g_error( "MSP430 is requesting unexpected address: 0x%4.4hx", next );
+
+		if( tos->vectors->len != 32 )
+			g_error( ".vectors section incorrect length: %u should be 32", tos->vectors->len );
+
+		if( elf_fw_version( &ef_bottom ) != elf_fw_version( &ef_top ) )
+			g_error( "Supplied ELF files have different version numbers" );
+
+		if( !force_load && fw == elf_fw_version( tos ) ) {
+			g_print( "No update required\n" );
+			continue;
+		}
+
+		printf( "Sending firmware version %hu.\n", elf_fw_version(tos) );
+
+		msp430_send_section( ctx, device, tos->text, TRUE );
+		msp430_send_section( ctx, device, tos->vectors, FALSE );
+		printf( "Confirming CRC\n" );
+		msp430_confirm_crc( ctx, device );
 	}
 
 	sric_quit(ctx);
-
-
-	return 0;
-	i2c_fd = i2c_config( i2c_device, i2c_address );
-
-	/* Tell the msp430_fw code what the address is  */
-	msp430_fw_i2c_address = &i2c_address;
-	i2c_blk_addr = &i2c_address;
-
-	/* Get the firmware version.
-	   The MSP430 resets its firmware reception code upon receiving this. */
-	if( !msp430_get_fw_version( i2c_fd, &fw, give_up ) ) {
-		g_print( "'%s' not answering :-(  Giving up.\n", dev_name );
-		return 0;
-	}
-	printf( "Existing firmware version %hx\n", fw );
-
-	/* Load and sort the ELF files */
-	load_elfs( elf_fname_b, elf_fname_t, &ef_bottom, &ef_top );
-
-	/* Find out which ELF file to send (top or bottom) */
-	next = msp430_get_next_address( i2c_fd );
-	if( next == msp430_fw_bottom ) {
-		g_print("Sending bottom half\n");
-		tos = &ef_bottom;
-	}
-	else if( next == msp430_fw_top ) {
-		g_print("Sending top half\n");
-		tos = &ef_top;
-	}
-	else
-		g_error( "MSP430 is requesting unexpected address: 0x%4.4hx", next );
-
-	if( tos->vectors->len != 32 )
-		g_error( ".vectors section incorrect length: %u should be 32", tos->vectors->len );
-
-	if( elf_fw_version( &ef_bottom ) != elf_fw_version( &ef_top ) )
-		g_error( "Supplied ELF files have different version numbers" );
-
-	if( !force_load && fw == elf_fw_version( tos ) ) {
-		g_print( "No update required\n" );
-		return 0;
-	}
-
-	printf( "Sending firmware version %hu.\n", elf_fw_version(tos) );
-
-	msp430_send_section( i2c_fd, tos->text, TRUE );
-	msp430_send_section( i2c_fd, tos->vectors, FALSE );
-	printf( "Confirming CRC\n" );
-	msp430_confirm_crc( i2c_fd );
 
 	return 0;
 }
@@ -201,20 +196,14 @@ static void config_file_load( const char* fname )
 	if( err != NULL )
 		g_error( "Failed to read i2c.device: %s", err->message );
 
-	/** Load the I2C slave address **/
-	/* Check the device group exists */
-	if( !g_key_file_has_group( keyfile, dev_name ) )
-		g_error( "%s group not found in config file", dev_name );
+	/* Check for the board type exists */
+	if (!g_key_file_has_key(keyfile, dev_name, "board", NULL))
+		g_error("%s.board config not found", dev_name);
 
-	/* Check it's in the config file */
-	if( !g_key_file_has_key( keyfile, dev_name, "address", NULL ) )
-		g_error( "%s.address config not found", dev_name );
-	
-	/* Grab it from the config file */
 	err = NULL;
-	i2c_address = key_file_get_hex( keyfile, dev_name, "address", &err );
-	if( err != NULL )
-		g_error( "Failed to read %s.address: %s", dev_name, err->message );
+	board_type = key_file_get_hex(keyfile, dev_name, "board", &err);
+	if (err != NULL)
+		g_error("Failed to read %s.board: %s", dev_name, err->message);
 
 	/** Load in the commands **/
 	/* dev_name */
