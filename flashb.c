@@ -25,13 +25,8 @@
 #include <string.h>
 #include <sric.h>
 
-#include "i2c-dev.h"
 #include "elf-access.h"
-#include "i2c.h"
-#include "smbus_pec.h"
 #include "msp430-fw.h"
-#include "i2c-blk.h"
-#include "sr-i2c.h"
 
 /* Sort out all the configuration loading from the cli and config file */
 static void config_load( int *argc, char ***argv );
@@ -66,7 +61,6 @@ cmd_desc_t cmds[] =
 char* conf_get_cmd_str( uint8_t cmd );
 
 static char* config_fname = "flashb.config";
-static char* i2c_device = NULL;
 static uint8_t board_type = 0;
 static char* dev_name = NULL;
 static char *elf_fname_b = NULL;
@@ -77,7 +71,6 @@ static gboolean give_up = FALSE;
 static GOptionEntry entries[] =
 {
 	{ "config", 'c', 0, G_OPTION_ARG_FILENAME, &config_fname, "Config file path", "PATH" },
-	{ "device", 'd', 0, G_OPTION_ARG_FILENAME, &i2c_device, "I2C device path", "DEV_PATH" },
 	{ "name", 'n', 0, G_OPTION_ARG_STRING, &dev_name, "Slave device name in config file.", "NAME" },
 	{ "force", 'f', 0, G_OPTION_ARG_NONE, &force_load, "Force update, even if target has given version", NULL },
 	{ "give-up", 'g', 0, G_OPTION_ARG_NONE, &give_up, "Give up if comms with the device fail initially", NULL },
@@ -186,20 +179,6 @@ static void config_file_load( const char* fname )
 		g_error( "Failed to load config from file '%s': %s", 
 			 fname, err->message );
 
-	/** Load the I2C device name **/
-	/* Check the i2c group exists */
-	if( !g_key_file_has_group( keyfile, "i2c" ) )
-		g_error( "i2c group not found in config file" );
-
-	/* Check the key exists */
-	if( !g_key_file_has_key( keyfile, "i2c", "device", NULL ) )
-		g_error( "i2c.device config not found" );
-
-	err = NULL;
-	i2c_device = g_key_file_get_string( keyfile, "i2c", "device", &err );
-	if( err != NULL )
-		g_error( "Failed to read i2c.device: %s", err->message );
-
 	/* Check for the board type exists */
 	if (!g_key_file_has_key(keyfile, dev_name, "board", NULL))
 		g_error("%s.board config not found", dev_name);
@@ -234,11 +213,6 @@ static void config_file_load( const char* fname )
 
 	msp430_fw_bottom = key_file_get_hex( keyfile, dev_name, "bottom", NULL );
 	msp430_fw_top = key_file_get_hex( keyfile, dev_name, "top", NULL );
-
-	if( g_key_file_has_key( keyfile, dev_name, "cmd_format", NULL ) )
-		sr_i2c_cmd_format = g_key_file_get_integer( keyfile, dev_name, "cmd_format", NULL );
-	else
-		sr_i2c_cmd_format = SR_I2C_NO_LEN;
 }
 
 static unsigned long int key_file_get_hex( GKeyFile *key_file,
