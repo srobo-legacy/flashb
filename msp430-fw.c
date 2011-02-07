@@ -110,7 +110,8 @@ uint16_t msp430_get_next_address_once( sric_context ctx, const sric_device *devi
 	msg.payload_length = 1;
 	msg.payload[0] = commands[CMD_FW_NEXT];
 
-	while (sric_txrx(ctx, &msg, &rtn, MSP430_FW_TIMEOUT));
+	if (sric_txrx(ctx, &msg, &rtn, MSP430_FW_TIMEOUT))
+		g_error("Failed to read next address");
 
 	r = rtn.payload[0];
 	r |= rtn.payload[1] << 8;
