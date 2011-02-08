@@ -204,7 +204,15 @@ void msp430_confirm_crc( sric_context ctx, const sric_device *device )
 	msg.payload[0] = commands[CMD_FW_CONFIRM];
 	g_memmove(msg.payload+1, buf, 4);
 
-	while(sric_txrx(ctx, &msg, &rtn, MSP430_FW_TIMEOUT));
+	/* The board handles the sending of an ack to a packet asynchronously
+	 * therefore it will switch over to the new firmware straight away
+	 * after successfully receiving this command and not send an ack.
+	 * To save lots of faffing around in the firmware I'm going to send
+	 * this command a few times and leave it at that */
+	int i;
+	for (i=0; i<10; i++) {
+		sric_txrx(ctx, &msg, &rtn, 1);
+	}
 }
 
 static void graph( char *str, uint16_t done, uint16_t total )
