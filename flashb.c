@@ -120,7 +120,12 @@ int main( int argc, char** argv )
 	while((device = sric_enumerate_devices(ctx, device))) {
 		g_print("Address: %i\tType: %i\n", device->address, device->type);
 
-		if (device->type != board_type)
+		if (board_address != 0) {
+			if (board_address != device->address)
+				continue;
+			else if (board_type != device->type)
+				g_error("Board at address %i is not the correct type", board_address);
+		} else if (device->type != board_type)
 			continue;
 
 		/* Get the firmware version.
