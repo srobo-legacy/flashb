@@ -66,12 +66,14 @@ static char* dev_name = NULL;
 static char *elf_fname_b = NULL;
 static char *elf_fname_t = NULL;
 static gboolean force_load = FALSE;
+static gint board_address = 0;
 
 static GOptionEntry entries[] =
 {
 	{ "config", 'c', 0, G_OPTION_ARG_FILENAME, &config_fname, "Config file path", "PATH" },
 	{ "name", 'n', 0, G_OPTION_ARG_STRING, &dev_name, "Slave device name in config file.", "NAME" },
 	{ "force", 'f', 0, G_OPTION_ARG_NONE, &force_load, "Force update, even if target has given version", NULL },
+	{ "address", 'a', 0, G_OPTION_ARG_INT, &board_address, "Only program board at address n", "n" },
 	{ NULL }
 };
 
