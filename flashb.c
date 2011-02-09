@@ -112,6 +112,9 @@ int main( int argc, char** argv )
 		return 0;
 	}
 
+	/* Load and sort the ELF files */
+	load_elfs( elf_fname_b, elf_fname_t, &ef_bottom, &ef_top );
+
 	const sric_device* device = NULL;
 	/* Used to keep count of the index of the current board type */
 	while((device = sric_enumerate_devices(ctx, device))) {
@@ -119,9 +122,6 @@ int main( int argc, char** argv )
 
 		if (device->type != board_type)
 			continue;
-
-		/* Load and sort the ELF files */
-		load_elfs( elf_fname_b, elf_fname_t, &ef_bottom, &ef_top );
 
 		/* Get the firmware version.
 		   The MSP430 resets its firmware reception code upon receiving this. */
