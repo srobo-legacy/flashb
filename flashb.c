@@ -90,6 +90,13 @@ static void load_elfs( char* fna, char* fnb,
 /* Get the version number of the given ELF file */
 static uint16_t elf_fw_version( struct elf_file_t *e );
 
+/* Program the given device after making a few sanity checks.
+ * Returns TRUE when flashing succeeded */
+static gboolean flash_board( const sric_context ctx,
+                             const sric_device *device,
+                             struct elf_file_t *elf,
+                             const uint16_t fw );
+
 int main( int argc, char** argv )
 {
 	sric_context ctx;
@@ -107,26 +114,21 @@ int main( int argc, char** argv )
 
 	const sric_device* device = NULL;
 	/* Used to keep count of the index of the current board type */
-	uint8_t board_counter = 0;
 	while((device = sric_enumerate_devices(ctx, device))) {
 		g_print("Address: %i\tType: %i\n", device->address, device->type);
 
 		if (device->type != board_type)
 			continue;
 
+		/* Load and sort the ELF files */
+		load_elfs( elf_fname_b, elf_fname_t, &ef_bottom, &ef_top );
+
 		/* Get the firmware version.
 		   The MSP430 resets its firmware reception code upon receiving this. */
 		if( !msp430_get_fw_version( ctx, device, &fw ) ) {
-			g_print( "'%s[%i]' not answering, skipping\n", dev_name, board_counter );
-			continue;
+			g_print( "'%s[%i]' not answering\n", dev_name, device->address );
+			return FALSE;
 		}
-
-		board_counter++;
-
-		printf( "Existing firmware version %hx\n", fw );
-
-		/* Load and sort the ELF files */
-		load_elfs( elf_fname_b, elf_fname_t, &ef_bottom, &ef_top );
 
 		/* Find out which ELF file to send (top or bottom) */
 		next = msp430_get_next_address( ctx, device );
@@ -141,28 +143,43 @@ int main( int argc, char** argv )
 		else
 			g_error( "MSP430 is requesting unexpected address: 0x%4.4hx", next );
 
-		if( tos->vectors->len != 32 )
-			g_error( ".vectors section incorrect length: %u should be 32", tos->vectors->len );
-
 		if( elf_fw_version( &ef_bottom ) != elf_fw_version( &ef_top ) )
 			g_error( "Supplied ELF files have different version numbers" );
 
-		if( !force_load && fw == elf_fw_version( tos ) ) {
-			g_print( "No update required\n" );
-			continue;
-		}
-
-		printf( "Sending firmware version %hu.\n", elf_fw_version(tos) );
-
-		msp430_send_section( ctx, device, tos->text, TRUE );
-		msp430_send_section( ctx, device, tos->vectors, FALSE );
-		printf( "Confirming CRC\n" );
-		msp430_confirm_crc( ctx, device );
+		flash_board(ctx, device, tos, fw);
 	}
 
 	sric_quit(ctx);
 
 	return 0;
+}
+
+static gboolean flash_board( const sric_context ctx,
+                             const sric_device *device,
+                             struct elf_file_t *elf,
+                             const uint16_t fw) {
+
+
+		printf( "Existing firmware version on '%s[%i]': %hx\n", dev_name, device->address, fw );
+
+		if( elf->vectors->len != 32 ) {
+			g_print( ".vectors section incorrect length: %u should be 32", elf->vectors->len );
+			return FALSE;
+		}
+
+		if( !force_load && fw == elf_fw_version( elf ) ) {
+			g_print( "No update required\n" );
+			return FALSE;
+		}
+
+		printf("Sending firmware version %hu to '%s[%i]'\n", elf_fw_version(elf), dev_name, device->address);
+
+		msp430_send_section( ctx, device, elf->text, TRUE );
+		msp430_send_section( ctx, device, elf->vectors, FALSE );
+		printf( "Confirming CRC\n" );
+		msp430_confirm_crc( ctx, device );
+
+		return TRUE;
 }
 
 static void config_file_load( const char* fname )
