@@ -29,8 +29,7 @@ static void graph( char* str, uint16_t done, uint16_t total );
 
 gboolean msp430_get_fw_version( sric_context ctx,
                                 const sric_device *device,
-                                uint16_t *ver,
-                                gboolean give_up )
+                                uint16_t *ver)
 {
 	g_assert( ver != NULL );
 
