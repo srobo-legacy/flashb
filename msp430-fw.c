@@ -32,7 +32,6 @@ gboolean msp430_get_fw_version( sric_context ctx,
                                 uint16_t *ver,
                                 gboolean give_up )
 {
-	uint16_t c = 0;
 	g_assert( ver != NULL );
 
 	sric_frame msg, rtn;
@@ -41,14 +40,10 @@ gboolean msp430_get_fw_version( sric_context ctx,
 	msg.payload_length = 1;
 	msg.payload[0] = commands[CMD_FW_VER];
 
-	while(sric_txrx(ctx, &msg, &rtn, MSP430_FW_TIMEOUT)) {
-		if (give_up) {
-			if (c > MSP430_FW_RETRIES)
-				return FALSE;
-			c++;
-		} else {
-			g_print( "Failed to read firmware version... retrying. Error: %i\n", sric_get_error(ctx) );
-		}
+	if (sric_txrx(ctx, &msg, &rtn, MSP430_FW_TIMEOUT)) {
+		/* It's not a fatal error if the firmware version cannot be read,
+		 * this allows the board to be skipped. */
+		return FALSE;
 	}
 
 	*ver = rtn.payload[0];
