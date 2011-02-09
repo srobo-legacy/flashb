@@ -211,7 +211,7 @@ void msp430_confirm_crc( sric_context ctx, const sric_device *device )
 	 * this command a few times and leave it at that */
 	int i;
 	for (i=0; i<10; i++) {
-		sric_txrx(ctx, &msg, &rtn, 1);
+		sric_txrx(ctx, &msg, &rtn, MSP430_FW_TIMEOUT);
 	}
 }
 
