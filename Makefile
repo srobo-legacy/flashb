@@ -1,9 +1,9 @@
 CFLAGS += -Wall -g
 
-PKG_CONFIG = `pkg-config $(PKG_CONFIG_ARGS) --cflags glib-2.0`
-LDFLAGS += `pkg-config $(PKG_CONFIG_ARGS) --libs glib-2.0`
+PKG_CONFIG = `pkg-config $(PKG_CONFIG_ARGS) --cflags glib-2.0 libsric`
+LDFLAGS += `pkg-config $(PKG_CONFIG_ARGS) --libs glib-2.0 libsric`
 
-LDFLAGS += -lelf -lsric
+LDFLAGS += -lelf
 
 flashb: flashb.c elf-access.c msp430-fw.c
 	$(CC) -o flashb   $^ -lelf ${LDFLAGS} ${PKG_CONFIG} ${CFLAGS}
