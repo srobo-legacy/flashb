@@ -8,6 +8,10 @@ LDFLAGS += -lelf
 flashb: flashb.c elf-access.c msp430-fw.c
 	$(CC) $(CFLAGS) $(LDFLAGS) -o flashb $^
 
+install: flashb
+	install -d $(DESTDIR)$(PREFIX)/bin
+	install flashb $(DESTDIR)$(PREFIX)/bin/flashb
+
 elf-access.c: elf-access.h
 smbus_pec.c: smbus_pec.h
 msp430-fw.c: msp430-fw.h
