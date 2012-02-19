@@ -50,10 +50,8 @@ extern uint8_t commands[NUM_COMMANDS];
 extern uint16_t msp430_fw_bottom;
 extern uint16_t msp430_fw_top;
 
-/* Read the firmware version from the device
-   Return FALSE on failure.
-   Result put in *ver. */
-gboolean msp430_get_fw_version( sric_context ctx, const sric_device* dev, uint16_t *ver);
+/* Read the firmware version from the device */
+uint16_t msp430_get_fw_version( sric_context ctx, const sric_device* dev );
 
 /* Read the next address the device is expecting */
 uint16_t msp430_get_next_address( sric_context ctx, const sric_device* dev );

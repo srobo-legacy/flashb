@@ -27,11 +27,10 @@ uint16_t msp430_fw_top = 0;
 
 static void graph( char* str, uint16_t done, uint16_t total );
 
-gboolean msp430_get_fw_version( sric_context ctx,
-                                const sric_device *device,
-                                uint16_t *ver)
+uint16_t msp430_get_fw_version( sric_context ctx,
+				const sric_device *device )
 {
-	g_assert( ver != NULL );
+	uint16_t ver;
 
 	sric_frame msg, rtn;
 	msg.address = device->address;
@@ -39,16 +38,11 @@ gboolean msp430_get_fw_version( sric_context ctx,
 	msg.payload_length = 1;
 	msg.payload[0] = commands[CMD_FW_VER];
 
-	if (sric_txrx(ctx, &msg, &rtn, MSP430_FW_TIMEOUT)) {
-		/* It's not a fatal error if the firmware version cannot be read,
-		 * this allows the board to be skipped. */
-		return FALSE;
-	}
+	sric_txrx(ctx, &msg, &rtn, -1);
 
-	*ver = rtn.payload[0];
-	*ver |= rtn.payload[1] << 8;
-
-	return TRUE;
+	ver = rtn.payload[0];
+	ver |= rtn.payload[1] << 8;
+	return ver;
 }
 
 uint16_t msp430_get_next_address( sric_context ctx, const sric_device *device )

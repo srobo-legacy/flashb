@@ -128,12 +128,8 @@ int main( int argc, char** argv )
 		} else if (device->type != board_type)
 			continue;
 
-		/* Get the firmware version.
-		   The MSP430 resets its firmware reception code upon receiving this. */
-		if( !msp430_get_fw_version( ctx, device, &fw ) ) {
-			g_print( "'%s[%i]' not answering\n", dev_name, device->address );
-			return FALSE;
-		}
+		/* Get the firmware version. */
+		fw = msp430_get_fw_version( ctx, device );
 
 		/* Find out which ELF file to send (top or bottom) */
 		next = msp430_get_next_address( ctx, device );
