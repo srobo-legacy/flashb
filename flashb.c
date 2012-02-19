@@ -158,29 +158,28 @@ int main( int argc, char** argv )
 static gboolean flash_board( const sric_context ctx,
                              const sric_device *device,
                              struct elf_file_t *elf,
-                             const uint16_t fw) {
+                             const uint16_t fw)
+{
+	printf( "Existing firmware version on '%s[%i]': %hx\n", dev_name, device->address, fw );
 
+	if( elf->vectors->len != 32 ) {
+		g_print( ".vectors section incorrect length: %u should be 32", elf->vectors->len );
+		return FALSE;
+	}
 
-		printf( "Existing firmware version on '%s[%i]': %hx\n", dev_name, device->address, fw );
+	if( !force_load && fw == elf_fw_version( elf ) ) {
+		g_print( "No update required\n" );
+		return FALSE;
+	}
 
-		if( elf->vectors->len != 32 ) {
-			g_print( ".vectors section incorrect length: %u should be 32", elf->vectors->len );
-			return FALSE;
-		}
+	printf("Sending firmware version %hu to '%s[%i]'\n", elf_fw_version(elf), dev_name, device->address);
 
-		if( !force_load && fw == elf_fw_version( elf ) ) {
-			g_print( "No update required\n" );
-			return FALSE;
-		}
+	msp430_send_section( ctx, device, elf->text, TRUE );
+	msp430_send_section( ctx, device, elf->vectors, FALSE );
+	printf( "Confirming CRC\n" );
+	msp430_confirm_crc( ctx, device );
 
-		printf("Sending firmware version %hu to '%s[%i]'\n", elf_fw_version(elf), dev_name, device->address);
-
-		msp430_send_section( ctx, device, elf->text, TRUE );
-		msp430_send_section( ctx, device, elf->vectors, FALSE );
-		printf( "Confirming CRC\n" );
-		msp430_confirm_crc( ctx, device );
-
-		return TRUE;
+	return TRUE;
 }
 
 static void config_file_load( const char* fname )
