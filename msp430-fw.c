@@ -21,7 +21,6 @@
 #define MSP430_FW_TIMEOUT 200
 
 uint8_t commands[NUM_COMMANDS];
-uint8_t* msp430_fw_i2c_address = NULL;
 uint16_t msp430_fw_bottom = 0;
 uint16_t msp430_fw_top = 0;
 
