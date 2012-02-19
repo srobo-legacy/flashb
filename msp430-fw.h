@@ -56,8 +56,6 @@ uint16_t msp430_get_fw_version( sric_context ctx, const sric_device* dev );
 /* Read the next address the device is expecting */
 uint16_t msp430_get_next_address( sric_context ctx, const sric_device* dev );
 
-uint16_t msp430_get_next_address_once( sric_context ctx, const sric_device* dev );
-
 /* Send a 16 byte chunk of firmware to the msp430.
    Arguments:
     -     fd: The i2c device file descriptor

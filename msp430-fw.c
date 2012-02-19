@@ -45,18 +45,6 @@ uint16_t msp430_get_fw_version( sric_context ctx,
 	return ver;
 }
 
-uint16_t msp430_get_next_address( sric_context ctx, const sric_device *device )
-{
-	uint16_t r1, r2;
-
-	do {
-		r1 = msp430_get_next_address_once(ctx, device);
-		r2 = msp430_get_next_address_once(ctx, device);
-	} while ( r1 != r2 );
-
-	return r1;
-}
-
 void msp430_send_block( sric_context ctx,
 			const sric_device *device,
 			uint16_t fw_ver,
@@ -88,7 +76,7 @@ void msp430_send_block( sric_context ctx,
 		g_error( "Failed to write data" );
 }
 
-uint16_t msp430_get_next_address_once( sric_context ctx, const sric_device *device )
+uint16_t msp430_get_next_address( sric_context ctx, const sric_device *device )
 {
 	uint16_t r;
 
@@ -98,8 +86,7 @@ uint16_t msp430_get_next_address_once( sric_context ctx, const sric_device *devi
 	msg.payload_length = 1;
 	msg.payload[0] = commands[CMD_FW_NEXT];
 
-	if (sric_txrx(ctx, &msg, &rtn, MSP430_FW_TIMEOUT))
-		g_error("Failed to read next address");
+	sric_txrx(ctx, &msg, &rtn, -1);
 
 	r = rtn.payload[0];
 	r |= rtn.payload[1] << 8;
