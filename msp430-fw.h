@@ -14,7 +14,7 @@
     along with this program; if not, write to the Free Software
     Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA. */
 
-/* Routines for sending/receiving firmware to an MSP430 over I2C */
+/* Routines for sending/receiving firmware to an MSP430 over SRIC */
 #ifndef __MSP430_FW
 #define __MSP430_FW
 #include <stdint.h>
@@ -28,7 +28,7 @@
 
 #define CHUNK_SIZE 16
 
-/* Names for the I2C commands */
+/* Names for the SRIC commands */
 enum {
 	/* Read firmware from the msp430 */
 	CMD_FW_VER = 0,
@@ -58,7 +58,7 @@ uint16_t msp430_get_next_address( sric_context ctx, const sric_device* dev );
 
 /* Send a 16 byte chunk of firmware to the msp430.
    Arguments:
-    -     fd: The i2c device file descriptor
+    -    ctx: The sric context
     - fw_ver: The firmware version
     -   addr: The chunk address
     -  chunk: Pointer to the 16 byte chunk of data */
@@ -70,7 +70,7 @@ void msp430_send_block( sric_context ctx,
 
 /* Send the given section to the msp430.
    Arguments:
-    - 	       fd: The I2C file descriptor
+    - 	      ctx: The sric context
     -     section: The section to send
     - check_first: FALSE means ignore the first expected address read from the MSP430.
     		   This is useful for when the msp430 will accept data for

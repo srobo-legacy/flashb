@@ -14,7 +14,7 @@
     along with this program; if not, write to the Free Software
     Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA. */
 
-/* A utility for loading firmware into a MSP430 over I2C */
+/* A utility for loading firmware into a MSP430 over SRIC */
 #include <glib.h>
 #include <stdint.h>
 #include <stdlib.h>
@@ -41,7 +41,7 @@ static unsigned long int key_file_get_hex( GKeyFile *key_file,
 					   const gchar *key,
 					   GError **error );
 
-/** Firmware related I2C commands **/
+/** Firmware related SRIC commands **/
 typedef struct {
 	uint8_t cmd;
 	char* conf_name;
@@ -270,7 +270,7 @@ static void config_load( int *argc, char ***argv )
 	GError *error = NULL;
 	GOptionContext *context;
 
-	context = g_option_context_new( "BOTTOM_ELF_FILE TOP_ELF_FILE - flash MSP430s over I2C" );
+	context = g_option_context_new( "BOTTOM_ELF_FILE TOP_ELF_FILE - flash MSP430s over SRIC" );
 	g_option_context_add_main_entries( context, entries, NULL );
 
 	/* Parse command line options */
